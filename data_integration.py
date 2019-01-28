@@ -1,3 +1,7 @@
+"""
+Project Description:
+
+"""
 import psycopg2
 
 # Connect to an existing database
