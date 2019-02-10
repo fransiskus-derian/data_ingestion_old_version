@@ -2,7 +2,6 @@
 Project Description:
 
 """
-import psycopg2
 
 # Connect to an existing database
 conn = psycopg2.connect(host="localhost", database="Movie", user="postgres", password="qw")

@@ -23,13 +23,15 @@ def construct_dictionary(xml_files):
     count = 0
     for file in xml_files:
         count += 1
-        if count > 1000:
+        if count > 1:
             break
         try:
+            key_list = []
             with open(path + file) as content:
                 doc = xmltodict.parse(content.read())
-                #print(doc['clinical_study']['required_header']['url'])
-                print(doc['clinical_study']['brief_title'])
+                print(type(doc['clinical_study']['required_header']))
+                #while True:
+
                 content.close()
         except:
             continue
