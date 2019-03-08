@@ -2,11 +2,62 @@ import os
 import urllib.request
 import xmltodict
 import psycopg2
+from selenium import webdriver
+import time
+import zipfile
+import shutil
 
 USER = 'postgres'
 HOST = 'localhost'
 PWD = '123456'
 DB = "Clinical"
+download_path = "C:\\Users\\deria\\Downloads"
+data_dest = "C:\\Users\\deria\\Documents\\OSU\\Winter 2019\\CS 540\\Project\\cancer"
+link = "https://clinicaltrials.gov/ct2/download_studies?term=cancer&down_chunk="
+
+def check_directory(path):
+    files = [f for f in os.listdir(path)]
+    if files != []:
+        shutil.rmtree(path)
+        os.mkdir(path)
+
+
+def download_source(link):
+    try:
+        check_directory(data_dest)
+        driver = webdriver.Chrome("./chromedriver.exe")
+        for i in range(1, 3):
+
+            driver.get(link + str(i))
+            time.sleep(3)
+            downloads_checker()
+            move_file(download_path+"\\search_result.zip", data_dest+"\\"+str(i)+".zip")
+        driver.quit()
+
+        unzip_file(data_dest)
+    except Exception as e:
+        print(e)
+        driver.quit()
+
+def unzip_file(file_path):
+    list_of_file = [f for f in os.listdir(file_path) if f.endswith(".zip")]
+    for zip_file in list_of_file:
+        zip_ref = zipfile.ZipFile(file_path + "\\" + zip_file, 'r')
+        zip_ref.extractall(file_path)
+        #os.remove(file_path + "\\" + zip_file)
+    zip_ref.close()
+
+def move_file(src, dest):
+    os.rename(src, dest)
+
+def downloads_checker():
+    """
+    Check if webdriver is still downloading a file. sleep the system if it still does to avoid driver from quitting
+    """
+    stuff = [i for i in os.listdir(download_path) if i.endswith('.crdownload')]
+    if stuff != []:
+        time.sleep(3)
+        downloads_checker()
 
 def get_xml_files(path):
     """
@@ -23,7 +74,7 @@ def construct_dictionary(xml_files):
     count = 0
     for file in xml_files:
         count += 1
-        if count > 1:
+        if count > 5:
             break
         try:
             key_list = []
@@ -56,9 +107,9 @@ def execute_query(cur_to_db, query):
 
 
 if __name__ == "__main__":
-    path = '../clinical_file/'
+    download_source(link)
+    path = '../cancer/'
     all_files_path = os.listdir(path)
-
     xml_files = get_xml_files(all_files_path)
     cases = construct_dictionary(xml_files)
 
@@ -71,3 +122,6 @@ if __name__ == "__main__":
         count += 1
         if count == 5:
             break
+
+
+    print("quit")
