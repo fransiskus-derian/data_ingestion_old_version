@@ -8,12 +8,9 @@ import zipfile
 import shutil
 import collections
 
+import postgres_operations as po
 
 ##GLOBAL VARIABLES##
-USER = 'postgres'
-HOST = 'localhost'
-PWD = '123456'
-DB = "Clinical"
 download_path = "C:\\Users\\deria\\Downloads"
 data_dest = "C:\\Users\\deria\\Documents\\OSU\\Winter 2019\\CS 540\\Project\\cancer"
 link = "https://clinicaltrials.gov/ct2/download_studies?term=cancer&down_chunk="
@@ -88,7 +85,7 @@ def get_xml_files(path):
     """
     return [f for f in path if f.endswith('.xml')]
 
-def integrate_data(xml_files, path):
+def integrate_data(xml_files, path, cur):
     """
     """
     count = 0
@@ -111,7 +108,7 @@ def integrate_data(xml_files, path):
     condition_not_found = 0
     source_not_found = 0
 
-    while(count < 100):
+    while(count < 10000):
 
         try:
             with open(path + xml_files[count], 'rb') as c:
@@ -207,7 +204,7 @@ def integrate_data(xml_files, path):
                         country_temp.append(doc['clinical_study']['location_countries']['country'])
                     country = str(set(country_temp))
                 except Exception as e:
-                    country = str(set())
+                    country = '{}'
                     country_not_found += 1
                     #print(e)
 
@@ -252,7 +249,7 @@ def integrate_data(xml_files, path):
                         condition_temp.append(doc['clinical_study']['condition'])
                     condition = str(set(condition_temp))
                 except Exception as e:
-                    condition = str(set())
+                    condition = '{}'
                     condition_not_found += 1
                     #print(e)
 
@@ -265,8 +262,25 @@ def integrate_data(xml_files, path):
                 c.close()
             count += 1
         except Exception as e:
-
             print(e)
+        try:
+            if start_year != None:
+                start_year = int(start_year)
+
+            if completion_year != None:
+                completion_year = int(completion_year)
+
+            attributes = (nct_id, title, summary, url, country, source, status, purpose, study_type, allocation,
+                          start_year, start_month, completion_year, completion_month, gender, min_age, max_age,
+                          condition, healthy_volunteers)
+            po.insert_value(cur, "clinical_trial", attributes)
+        except Exception as e:
+            print("INSERTION FAILURE")
+            print(e)
+            #print(nct_id)
+            print(attributes)
+            #break
+
     print(nct_id_not_found)
     print(title_not_found)
     print(summary_not_found)
@@ -285,30 +299,30 @@ def integrate_data(xml_files, path):
     print(condition_not_found)
     print(source_not_found)
 
-def open_connection(host, db, user, password):
-    """
-    This function establish a connection to the local Post-GRE SQL db and return a cursor to execute queries
-    :return: cursor
-    """
-    conn = psycopg2.connect(host=host, database=db, user=user, password=password)
-    return conn.cursor()
-
-def execute_query(cur_to_db, query):
-    """
-    This function use the ongoing connection to the database and execute given query in the parameter
-    :param cur_to_db: On going connection
-    :param query: SQL query to be submitted to our database
-    :return: None
-    """
-    cur_to_db(query)
 
 
 if __name__ == "__main__":
     #download_source(link)
+
     path = '../cancer/'
     all_files_path = os.listdir(path)
     xml_files = get_xml_files(all_files_path)
-    integrate_data(xml_files, path)
 
-    #cursor = open_connection(HOST, DB, USER, PWD)
+    #connect to database
+    conn = po.connect_database()
+    cur = po.start_transaction(conn)
 
+    #construct relation
+    po.construct_case_table(cur)
+
+    #commit changes to DB
+    po.commit_transaction(conn)
+
+    #integrate data to the DB
+    integrate_data(xml_files, path, cur)
+
+    #commit data integration
+    po.commit_transaction(conn)
+
+    #end connection to DB
+    po.end_transaction(cur, conn)

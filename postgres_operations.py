@@ -3,9 +3,19 @@ Project Description:
 """
 import psycopg2
 
+def get_details():
+    with open("data.txt", 'r') as r1:
+        host = r1.readline().split("=")[1].strip()
+        db = r1.readline().split("=")[1].strip()
+        user = r1.readline().split("=")[1].strip()
+        pwd = r1.readline().split("=")[1].strip()
+        r1.close()
+    return (host, db, user, pwd)
+
 # Connect to an existing database
 def connect_database():
-    conn = psycopg2.connect(host="localhost", database="postgres", user="postgres", password="qw")
+    details = get_details()
+    conn = psycopg2.connect(host=details[0], database=details[1], user=details[2], password=details[3])
     return conn
 
 # Open a cursor to perform database operations
@@ -14,7 +24,11 @@ def start_transaction(conn):
     return cur
 
 # Create table function
-def construct_table(cur):
+def construct_case_table(cur):
+    drop_table_query ="""DROP TABLE IF EXISTS clinical_trial"""
+    
+    cur.execute(drop_table_query)
+    
     create_table_query ="""CREATE TABLE clinical_trial(
     nct_id text PRIMARY KEY,
     title text,
@@ -85,4 +99,3 @@ def rollback_transaction(conn):
 def end_transaction(cur,conn):
     cur.close()
     conn.close()
-                                                                                                                conn.close()
