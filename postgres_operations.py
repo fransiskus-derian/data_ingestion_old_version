@@ -34,6 +34,7 @@ def construct_case_table(cur):
     title text,
     description text,
     url text,
+    keyword text,
     country text[],
     source text,
     overall_status text,
@@ -58,6 +59,7 @@ def insert_value(cur, table_name, attributes):
         insert_query = """
         INSERT INTO clinical_trial 
         VALUES(%s,
+        %s,
         %s,
         %s,
         %s,

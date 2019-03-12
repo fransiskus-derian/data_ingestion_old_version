@@ -7,6 +7,8 @@ import time
 import zipfile
 import shutil
 import collections
+import matplotlib.pyplot as plt
+import pandas as pd
 
 import postgres_operations as po
 
@@ -85,7 +87,7 @@ def get_xml_files(path):
     """
     return [f for f in path if f.endswith('.xml')]
 
-def integrate_data(xml_files, path, cur):
+def integrate_case_data(xml_files, path, cur, keyword):
     """
     """
     count = 0
@@ -108,7 +110,7 @@ def integrate_data(xml_files, path, cur):
     condition_not_found = 0
     source_not_found = 0
 
-    while(count < 10000):
+    while(count < 20000):
 
         try:
             with open(path + xml_files[count], 'rb') as c:
@@ -247,7 +249,7 @@ def integrate_data(xml_files, path, cur):
                         condition_temp.extend(doc['clinical_study']['condition'])
                     else:
                         condition_temp.append(doc['clinical_study']['condition'])
-                    condition = str(set(condition_temp))
+                    condition = str(set(condition_temp)).replace("\"", "")
                 except Exception as e:
                     condition = '{}'
                     condition_not_found += 1
@@ -270,7 +272,7 @@ def integrate_data(xml_files, path, cur):
             if completion_year != None:
                 completion_year = int(completion_year)
 
-            attributes = (nct_id, title, summary, url, country, source, status, purpose, study_type, allocation,
+            attributes = (nct_id, title, summary, url, keyword, country, source, status, purpose, study_type, allocation,
                           start_year, start_month, completion_year, completion_month, gender, min_age, max_age,
                           condition, healthy_volunteers)
             po.insert_value(cur, "clinical_trial", attributes)
@@ -279,32 +281,83 @@ def integrate_data(xml_files, path, cur):
             print(e)
             #print(nct_id)
             print(attributes)
-            #break
+            break
 
-    print(nct_id_not_found)
-    print(title_not_found)
-    print(summary_not_found)
-    print(status_not_found)
-    print(study_type_not_found)
-    print(url_not_found)
-    print(gender_not_found)
-    print(min_age_not_found)
-    print(max_age_not_found)
-    print(healthy_volunteers_not_found)
-    print(allocation_not_found)
-    print(purpose_not_found)
-    print(country_not_found)
-    print(start_date_not_found)
-    print(completion_date_not_found)
-    print(condition_not_found)
-    print(source_not_found)
+    print("total NCT_ID not found: " + str(nct_id_not_found))
+    print("total TITLE not found: " + str(title_not_found))
+    print("total DESCRIPTION not found: " + str(summary_not_found))
+    print("total CASE STATUS not found: " + str(status_not_found))
+    print("total STUDY TYPE not found: " + str(study_type_not_found))
+    print("total URL not found: " + str(url_not_found))
+    print("total GENDER not found: " + str(gender_not_found))
+    print("total MIN_AGE not found: " + str(min_age_not_found))
+    print("total MAX_AGE not found: " + str(max_age_not_found))
+    print("total HEALTHY VOLUNTEERS not found: " + str(healthy_volunteers_not_found))
+    print("total ALLOCATION not found: " + str(allocation_not_found))
+    print("total PURPOSE not found: " + str(purpose_not_found))
+    print("total COUNTRY not found: " + str(country_not_found))
+    print("total START DATE not found: " + str(start_date_not_found))
+    print("total COMPLETION DATE not found: " + str(completion_date_not_found))
+    print("total CONDITION not found: " + str(condition_not_found))
+    print("total SOURCE not found: " + str(source_not_found))
 
+def plot_analysis():
+    query = """
+            with age_groups as (
+                SELECT 
+                    CASE 
+                        WHEN min_age_in_weeks/52 <= 10 THEN '0-10'
+                        WHEN min_age_in_weeks/52 <= 20 THEN '11-20'
+                        WHEN min_age_in_weeks/52 <= 30 THEN '21-30'
+                        WHEN min_age_in_weeks/52 <= 40 THEN '31-40'
+                        WHEN min_age_in_weeks/52 <= 50 THEN '41-50'
+                        WHEN min_age_in_weeks/52 <= 60 THEN '51-60'
+                        WHEN min_age_in_weeks/52 > 60 THEN '61 ++'
+                    END age_group,
+                    COUNT(nct_id) total_per_age_group
+                FROM 
+                    (SELECT 
+                            nct_id,
+                            CASE 
+                                WHEN LOWER(num_type) IN ('year', 'years') THEN num*52
+                                WHEN LOWER(num_type) IN ('month', 'months') THEN num*4
+                                ELSE num
+                            END min_age_in_weeks
+                        FROM 
+                            (SELECT
+                                nct_id,
+                                CAST(split_part(minimum_age, ' ', 1) AS INT) num,
+                                split_part(minimum_age, ' ', 2) num_type
+                            FROM 
+                                clinical_trial
+                            WHERE 
+                                minimum_age != 'N/A'
+                            ) t
+                         ) t1
+                GROUP BY 1
+                ORDER BY 1
+                ), total as (
+                SELECT 
+                    SUM(total_per_age_group) total_case 
+                FROM 
+                    age_groups )
+            
+            SELECT 
+                age_group, ROUND((total_per_age_group/total_case)*100, 1) percentage_of_case
+            FROM 
+                age_groups, total
+                
+            """
+    df = pd.read_sql_query(query, conn)
 
+    df.plot.barh(x='age_group', y='percentage_of_case', title='% of Cancer Case by Age Groups')
+    plt.show()
 
 if __name__ == "__main__":
     #download_source(link)
 
     path = '../cancer/'
+    keywords = ["Cancer"]
     all_files_path = os.listdir(path)
     xml_files = get_xml_files(all_files_path)
 
@@ -312,17 +365,23 @@ if __name__ == "__main__":
     conn = po.connect_database()
     cur = po.start_transaction(conn)
 
+    """
     #construct relation
     po.construct_case_table(cur)
 
     #commit changes to DB
     po.commit_transaction(conn)
 
-    #integrate data to the DB
-    integrate_data(xml_files, path, cur)
+    #integrate case data to the DB
+    for keyword in keywords:
+        integrate_case_data(xml_files, path, cur, keyword)
 
     #commit data integration
     po.commit_transaction(conn)
+    """
+    #draw plot
+    plot_analysis()
 
     #end connection to DB
     po.end_transaction(cur, conn)
+
