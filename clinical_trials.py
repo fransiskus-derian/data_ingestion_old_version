@@ -87,7 +87,7 @@ def download_source(link):
     try:
         make_directory(data_dest)
         driver = webdriver.Chrome("./chromedriver.exe")
-        for i in range(10, 11):
+        for i in range(1, 2):
 
             driver.get(link + str(i))
             time.sleep(3)
