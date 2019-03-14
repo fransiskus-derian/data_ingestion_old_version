@@ -1,7 +1,5 @@
 import os
-import urllib.request
 import xmltodict
-import psycopg2
 from selenium import webdriver
 import time
 import zipfile
@@ -14,20 +12,22 @@ import postgres_operations as po
 
 ##GLOBAL VARIABLES##
 download_path = "C:\\Users\\deria\\Downloads"
-data_dest = "C:\\Users\\deria\\Documents\\OSU\\Winter 2019\\CS 540\\Project\\cancer"
+data_dest = '../cancer/'
 link = "https://clinicaltrials.gov/ct2/download_studies?term=cancer&down_chunk="
 ordereddict = collections.OrderedDict()
 
-def check_directory(path):
+def make_directory(path):
     """
     check if the given path contains any files, if it does, remove the directory and create new one (to remove duplicate when downloading)
     :param path: the source path to check if there exist files in the directory
     :return: None
     """
-    files = [f for f in os.listdir(path)]
-    if files != []:
+    try:
         shutil.rmtree(path)
         os.mkdir(path)
+    except Exception as e:
+        os.mkdir(path)
+
 
 
 def download_source(link):
@@ -38,9 +38,9 @@ def download_source(link):
     :return:
     """
     try:
-        check_directory(data_dest)
+        make_directory(data_dest)
         driver = webdriver.Chrome("./chromedriver.exe")
-        for i in range(1, 3):
+        for i in range(1, 2):
 
             driver.get(link + str(i))
             time.sleep(3)
@@ -87,7 +87,7 @@ def get_xml_files(path):
     """
     return [f for f in path if f.endswith('.xml')]
 
-def integrate_case_data(xml_files, path, cur, keyword):
+def integrate_case_data(xml_files, path, cur, keyword, total_xml):
     """
     """
     count = 0
@@ -110,7 +110,7 @@ def integrate_case_data(xml_files, path, cur, keyword):
     condition_not_found = 0
     source_not_found = 0
 
-    while(count < 20000):
+    while(count < total_xml):
 
         try:
             with open(path + xml_files[count], 'rb') as c:
@@ -249,8 +249,10 @@ def integrate_case_data(xml_files, path, cur, keyword):
                         condition_temp.extend(doc['clinical_study']['condition'])
                     else:
                         condition_temp.append(doc['clinical_study']['condition'])
-                    condition = str(set(condition_temp)).replace("\"", "")
+                    condition = str(set(condition_temp)).replace("\"", "\'")
+                    #print(set(condition_temp))
                 except Exception as e:
+
                     condition = '{}'
                     condition_not_found += 1
                     #print(e)
@@ -331,7 +333,7 @@ def plot_analysis():
                             FROM 
                                 clinical_trial
                             WHERE 
-                                minimum_age != 'N/A'
+                                minimum_age != 'N/A' and keyword = 'Cancer'
                             ) t
                          ) t1
                 GROUP BY 1
@@ -354,18 +356,19 @@ def plot_analysis():
     plt.show()
 
 if __name__ == "__main__":
-    #download_source(link)
-
-    path = '../cancer/'
+    #DOWNLOAD DATA FROM THE WEBSITE
+    download_source(link)
+    path = data_dest
     keywords = ["Cancer"]
     all_files_path = os.listdir(path)
     xml_files = get_xml_files(all_files_path)
-
+    length_of_files = len(xml_files)
+    print(length_of_files)
     #connect to database
     conn = po.connect_database()
     cur = po.start_transaction(conn)
 
-    """
+
     #construct relation
     po.construct_case_table(cur)
 
@@ -374,14 +377,16 @@ if __name__ == "__main__":
 
     #integrate case data to the DB
     for keyword in keywords:
-        integrate_case_data(xml_files, path, cur, keyword)
+        integrate_case_data(xml_files, path, cur, keyword, length_of_files)
 
     #commit data integration
     po.commit_transaction(conn)
-    """
-    #draw plot
-    plot_analysis()
 
+    #draw plot
+    try:
+        plot_analysis()
+    except Exception as e:
+        print(e)
     #end connection to DB
     po.end_transaction(cur, conn)
 
