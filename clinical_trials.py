@@ -11,7 +11,7 @@ import pandas as pd
 import postgres_operations as po
 
 ##GLOBAL VARIABLES##
-download_path = ""
+download_path = "C:/Users/deria/Downloads"
 data_dest = '../cancer/'
 link = "https://clinicaltrials.gov/ct2/download_studies?term=cancer&down_chunk="
 ordereddict = collections.OrderedDict()
@@ -108,9 +108,9 @@ def unzip_file(file_path):
     """
     list_of_file = [f for f in os.listdir(file_path) if f.endswith(".zip")]
     for zip_file in list_of_file:
-        zip_ref = zipfile.ZipFile(file_path + "\\" + zip_file, 'r')
+        zip_ref = zipfile.ZipFile(file_path + "/" + zip_file, 'r')
         zip_ref.extractall(file_path)
-        #os.remove(file_path + "\\" + zip_file)
+        #os.remove(file_path + "/" + zip_file)
     zip_ref.close()
 
 def move_file(src, dest):
