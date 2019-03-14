@@ -87,7 +87,7 @@ def download_source(link):
     try:
         make_directory(data_dest)
         driver = webdriver.Chrome("./chromedriver.exe")
-        for i in range(1, 2):
+        for i in range(10, 11):
 
             driver.get(link + str(i))
             time.sleep(3)
@@ -367,36 +367,39 @@ def plot_analysis(query, conn, x_axis, y_axis, plot_title):
     plt.show()
 
 if __name__ == "__main__":
-    #DOWNLOAD DATA FROM THE WEBSITE
-    download_source(link)
-    path = data_dest
-    keywords = ["Cancer"]
-    all_files_path = os.listdir(path)
-    xml_files = get_xml_files(all_files_path)
-    length_of_files = len(xml_files)
-    #connect to database
-    conn = po.connect_database()
-    cur = po.start_transaction(conn)
-
-
-    #construct relation
-    po.construct_case_table(cur)
-
-    #commit changes to DB
-    po.commit_transaction(conn)
-
-    #integrate case data to the DB
-    for keyword in keywords:
-        integrate_case_data(xml_files, path, cur, keyword, 1000)
-
-    #commit data integration
-    po.commit_transaction(conn)
-
-    #draw plot
     try:
+        #DOWNLOAD DATA FROM THE WEBSITE
+        download_source(link)
+        path = data_dest
+        keywords = ["Cancer"]
+        all_files_path = os.listdir(path)
+        xml_files = get_xml_files(all_files_path)
+        length_of_files = len(xml_files)
+        #connect to database
+
+        conn = po.connect_database()
+        # construct relation
+        po.construct_case_table(cur)
+
+        # commit changes to DB
+        po.commit_transaction(conn)
+
+        cur = po.start_transaction(conn)
+
+        #integrate case data to the DB
+        for keyword in keywords:
+            integrate_case_data(xml_files, path, cur, keyword, 1000)
+
+        #commit data integration
+        po.commit_transaction(conn)
+
+        #draw plot
         plot_analysis(age_group_query, conn, 'age_group', 'percentage_of_case', '% of Cancer Case by Age Groups')
+
+        #end connection to DB
+        po.end_transaction(cur, conn)
     except Exception as e:
         print(e)
-    #end connection to DB
-    po.end_transaction(cur, conn)
-
+        print("TERMINATING PROGRAM..")
+        time.sleep(2)
+        print("PROGRAM TERMINATED")
