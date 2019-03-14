@@ -376,15 +376,15 @@ if __name__ == "__main__":
         xml_files = get_xml_files(all_files_path)
         length_of_files = len(xml_files)
         #connect to database
-
         conn = po.connect_database()
+        cur = po.start_transaction(conn)
+
         # construct relation
         po.construct_case_table(cur)
 
         # commit changes to DB
         po.commit_transaction(conn)
 
-        cur = po.start_transaction(conn)
 
         #integrate case data to the DB
         for keyword in keywords:
