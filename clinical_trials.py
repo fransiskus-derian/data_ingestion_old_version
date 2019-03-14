@@ -16,9 +16,56 @@ data_dest = '../cancer/'
 link = "https://clinicaltrials.gov/ct2/download_studies?term=cancer&down_chunk="
 ordereddict = collections.OrderedDict()
 
+age_group_query = """
+            with age_groups as (
+                SELECT 
+                    CASE 
+                        WHEN min_age_in_weeks/52 <= 10 THEN '0-10'
+                        WHEN min_age_in_weeks/52 <= 20 THEN '11-20'
+                        WHEN min_age_in_weeks/52 <= 30 THEN '21-30'
+                        WHEN min_age_in_weeks/52 <= 40 THEN '31-40'
+                        WHEN min_age_in_weeks/52 <= 50 THEN '41-50'
+                        WHEN min_age_in_weeks/52 <= 60 THEN '51-60'
+                        WHEN min_age_in_weeks/52 > 60 THEN '61 ++'
+                    END age_group,
+                    COUNT(nct_id) total_per_age_group
+                FROM 
+                    (SELECT 
+                            nct_id,
+                            CASE 
+                                WHEN LOWER(num_type) IN ('year', 'years') THEN num*52
+                                WHEN LOWER(num_type) IN ('month', 'months') THEN num*4
+                                ELSE num
+                            END min_age_in_weeks
+                        FROM 
+                            (SELECT
+                                nct_id,
+                                CAST(split_part(minimum_age, ' ', 1) AS INT) num,
+                                split_part(minimum_age, ' ', 2) num_type
+                            FROM 
+                                clinical_trial
+                            WHERE 
+                                minimum_age != 'N/A' and keyword = 'Cancer'
+                            ) t
+                         ) t1
+                GROUP BY 1
+                ORDER BY 1
+                ), total as (
+                SELECT 
+                    SUM(total_per_age_group) total_case 
+                FROM 
+                    age_groups )
+
+            SELECT 
+                age_group, ROUND((total_per_age_group/total_case)*100, 1) percentage_of_case
+            FROM 
+                age_groups, total
+
+            """
+
 def make_directory(path):
     """
-    check if the given path contains any files, if it does, remove the directory and create new one (to remove duplicate when downloading)
+    Create a directory based on given path (Firstly remove the directory if it already exists)
     :param path: the source path to check if there exist files in the directory
     :return: None
     """
@@ -285,6 +332,7 @@ def integrate_case_data(xml_files, path, cur, keyword, total_xml):
             print(attributes)
             break
 
+    #KEY FINDING RESULTS#
     print("total NCT_ID not found: " + str(nct_id_not_found))
     print("total TITLE not found: " + str(title_not_found))
     print("total DESCRIPTION not found: " + str(summary_not_found))
@@ -303,56 +351,19 @@ def integrate_case_data(xml_files, path, cur, keyword, total_xml):
     print("total CONDITION not found: " + str(condition_not_found))
     print("total SOURCE not found: " + str(source_not_found))
 
-def plot_analysis():
-    query = """
-            with age_groups as (
-                SELECT 
-                    CASE 
-                        WHEN min_age_in_weeks/52 <= 10 THEN '0-10'
-                        WHEN min_age_in_weeks/52 <= 20 THEN '11-20'
-                        WHEN min_age_in_weeks/52 <= 30 THEN '21-30'
-                        WHEN min_age_in_weeks/52 <= 40 THEN '31-40'
-                        WHEN min_age_in_weeks/52 <= 50 THEN '41-50'
-                        WHEN min_age_in_weeks/52 <= 60 THEN '51-60'
-                        WHEN min_age_in_weeks/52 > 60 THEN '61 ++'
-                    END age_group,
-                    COUNT(nct_id) total_per_age_group
-                FROM 
-                    (SELECT 
-                            nct_id,
-                            CASE 
-                                WHEN LOWER(num_type) IN ('year', 'years') THEN num*52
-                                WHEN LOWER(num_type) IN ('month', 'months') THEN num*4
-                                ELSE num
-                            END min_age_in_weeks
-                        FROM 
-                            (SELECT
-                                nct_id,
-                                CAST(split_part(minimum_age, ' ', 1) AS INT) num,
-                                split_part(minimum_age, ' ', 2) num_type
-                            FROM 
-                                clinical_trial
-                            WHERE 
-                                minimum_age != 'N/A' and keyword = 'Cancer'
-                            ) t
-                         ) t1
-                GROUP BY 1
-                ORDER BY 1
-                ), total as (
-                SELECT 
-                    SUM(total_per_age_group) total_case 
-                FROM 
-                    age_groups )
-            
-            SELECT 
-                age_group, ROUND((total_per_age_group/total_case)*100, 1) percentage_of_case
-            FROM 
-                age_groups, total
-                
-            """
+def plot_analysis(query, conn, x_axis, y_axis, plot_title):
+    """
+    Retrieve results from from PostgreSQL server based on the given query and plot the result into a horizontal bar graph
+    according to the given x-axis, y-axis, and title plot
+    :param query: SQL Query to retrieve results from SQL Server
+    :param conn: Connection to the DB
+    :param x_axis: table attribute name to be used as the x-axis of the plot
+    :param y_axis: table attribute name to be used as the y-axis of the plot
+    :param plot_title: title to be used for the plot
+    :return: None
+    """
     df = pd.read_sql_query(query, conn)
-
-    df.plot.barh(x='age_group', y='percentage_of_case', title='% of Cancer Case by Age Groups')
+    df.plot.barh(x=x_axis, y=y_axis, title=plot_title)
     plt.show()
 
 if __name__ == "__main__":
@@ -363,7 +374,6 @@ if __name__ == "__main__":
     all_files_path = os.listdir(path)
     xml_files = get_xml_files(all_files_path)
     length_of_files = len(xml_files)
-    print(length_of_files)
     #connect to database
     conn = po.connect_database()
     cur = po.start_transaction(conn)
@@ -377,14 +387,14 @@ if __name__ == "__main__":
 
     #integrate case data to the DB
     for keyword in keywords:
-        integrate_case_data(xml_files, path, cur, keyword, length_of_files)
+        integrate_case_data(xml_files, path, cur, keyword, 1000)
 
     #commit data integration
     po.commit_transaction(conn)
 
     #draw plot
     try:
-        plot_analysis()
+        plot_analysis(age_group_query, conn, 'age_group', 'percentage_of_case', '% of Cancer Case by Age Groups')
     except Exception as e:
         print(e)
     #end connection to DB
