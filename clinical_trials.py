@@ -11,7 +11,7 @@ import pandas as pd
 import postgres_operations as po
 
 ##GLOBAL VARIABLES##
-download_path = "C:\\Users\\deria\\Downloads"
+download_path = ""
 data_dest = '../cancer/'
 link = "https://clinicaltrials.gov/ct2/download_studies?term=cancer&down_chunk="
 ordereddict = collections.OrderedDict()
@@ -45,7 +45,7 @@ def download_source(link):
             driver.get(link + str(i))
             time.sleep(3)
             downloads_checker()
-            move_file(download_path+"\\search_result.zip", data_dest+"\\"+str(i)+".zip")
+            move_file(download_path+"/search_result.zip", data_dest+"/"+str(i)+".zip")
         driver.quit()
 
         unzip_file(data_dest)
