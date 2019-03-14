@@ -11,7 +11,7 @@ import pandas as pd
 import postgres_operations as po
 
 ##GLOBAL VARIABLES##
-download_path = "C:/Users/deria/Downloads"
+download_path = ""
 data_dest = '../cancer/'
 link = "https://clinicaltrials.gov/ct2/download_studies?term=cancer&down_chunk="
 ordereddict = collections.OrderedDict()
